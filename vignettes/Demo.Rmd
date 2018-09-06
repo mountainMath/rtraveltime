@@ -1,0 +1,127 @@
+---
+title: "RTraveltime Demo"
+author: "Jens von Bergmann"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(dplyr)
+library(rtraveltime)
+```
+
+
+As starting locations we pick UBC and SFU
+```{r}
+start_locations <- sf::read_sf('{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"id":"UBC"},
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -123.25235366821289,
+          49.264668080750134
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {"id":"SFU"},
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.9138159751892,
+          49.278514652253975
+        ]
+      }
+    }
+  ]
+}')
+```
+
+
+```{r}
+library(lubridate)
+isochrones <- get_departure_isochrone(start_locations %>% mutate(travel_time=45*60,mode_type="cycling",departure_time=ymd_hms("2018-09-05 08:00:00")))
+
+
+get_vector_tiles <- function(bbox){
+  rmapzen::mz_set_tile_host_nextzen(getOption("nextzen_API_key"))
+  mx_box=rmapzen::mz_rect(bbox$xmin,bbox$ymin,bbox$xmax,bbox$ymax)
+  rmapzen::mz_vector_tiles(mx_box)
+}
+
+bbox <- sf::st_bbox(isochrones)
+vector_tiles <- get_vector_tiles(bbox)
+roads <- rmapzen::as_sf(vector_tiles$roads) %>% filter(kind != "ferry")
+water <- rmapzen::as_sf(vector_tiles$water)
+
+
+
+library(ggplot2)
+ggplot(isochrones) +
+  geom_sf(aes(fill=id),alpha=0.8,color=NA) +
+  geom_sf(data = water, fill = "lightblue", colour = NA) +
+  geom_sf(data=roads,size=0.1,color="black",fill=NA) +
+  coord_sf(datum=NA,
+         xlim=c(bbox$xmin,bbox$xmax),
+         ylim=c(bbox$ymin,bbox$ymax)) +
+  theme(legend.position = "bottom") +
+  labs(title="Isochrone demo",fill="45 minutes\ncycling from",caption="traveltimeplatform.com isochrone API")
+
+#ggsave("../images/cycling_example.png",height = 3.5)
+```
+
+# Multiple travel times
+```{r}
+start_data <- start_locations %>% 
+  filter(id=="UBC") %>%
+  mutate(travel_time=10*60) %>%
+  bind_rows(
+    mutate(.,travel_time=20*60),
+    mutate(.,travel_time=30*60),
+    mutate(.,travel_time=40*60),
+    mutate(.,travel_time=50*60),
+    mutate(.,travel_time=60*60)
+  ) %>%
+  sf::st_sf(crs=sf::st_crs(start_locations)) %>%
+  mutate(mode_type="cycling",departure_time=ymd_hms("2018-09-05 08:00:00"),id=paste0(id,"_",row_number()))
+  
+stacked_isochrones <- get_departure_isochrone(start_data)
+
+```
+
+
+```{r}
+bbox2 <- sf::st_bbox(stacked_isochrones)
+
+for (i in rev(seq(2,nrow(stacked_isochrones)))){
+  stacked_isochrones[i,"geometry"]=sf::st_difference(stacked_isochrones[i,"geometry"],stacked_isochrones[i-1,"geometry"])
+}
+
+cycling_labels <- setNames(paste0(start_data$travel_time/60," min"),start_data$id)
+
+ggplot(stacked_isochrones) +
+  scale_fill_viridis_d(direction=-1,labels=cycling_labels) +
+  geom_sf(aes(fill=id),color=NA) +
+  geom_sf(data = water, fill = "lightblue", colour = NA) +
+  geom_sf(data=roads,size=0.1,color="black",fill=NA) +
+  coord_sf(datum=NA,
+         xlim=c(bbox2$xmin,bbox2$xmax),
+         ylim=c(bbox2$ymin,bbox2$ymax)) +
+  labs(title="Isochrone demo",fill="Cycling range",caption="traveltimeplatform.com isochrone API")
+
+#ggsave("../images/cycling_ubc.png")
+```
+
