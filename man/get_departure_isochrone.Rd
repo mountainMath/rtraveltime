@@ -2,19 +2,21 @@
 % Please edit documentation in R/rtraveltime.R
 \name{get_departure_isochrone}
 \alias{get_departure_isochrone}
-\title{Get isochrone based on departure times and locations}
+\title{Get isochrone based on departure times and locations
+Expects `rtraveltime.id` and `rtraveltime.key` options to be set with traveltime API information}
 \usage{
 get_departure_isochrone(data)
 }
 \arguments{
 \item{data}{tibble of type sf with point geometry for starting locations and fields
-*travel_time* travel time in seconds
-*mode_type* transportation type
-*id* (optional), must be unique if present the return data will be labeled by *id* values}
+`travel_time` travel time in seconds
+`mode_type` transportation type
+`id` (optional), must be unique if present the return data will be labeled by `id` values}
 }
 \value{
 a vector of type sf containging the isochorone polygons
 }
 \description{
 Get isochrone based on departure times and locations
+Expects `rtraveltime.id` and `rtraveltime.key` options to be set with traveltime API information
 }

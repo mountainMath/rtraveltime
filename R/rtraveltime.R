@@ -1,8 +1,10 @@
 #' Get isochrone based on departure times and locations
+#' Expects `rtraveltime.id` and `rtraveltime.key` options to be set with traveltime API information
+#'
 #' @param data tibble of type sf with point geometry for starting locations and fields
-#'   *travel_time* travel time in seconds
-#'   *mode_type* transportation type
-#'   *id* (optional), must be unique if present the return data will be labeled by *id* values
+#'   `travel_time` travel time in seconds
+#'   `mode_type` transportation type
+#'   `id` (optional), must be unique if present the return data will be labeled by `id` values
 #' @return a vector of type sf containging the isochorone polygons
 #' @export
 get_departure_isochrone <- function(data){
