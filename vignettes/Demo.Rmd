@@ -15,7 +15,11 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 library(dplyr)
+library(sf)
 library(rtraveltime)
+library(lubridate)
+library(ggplot2)
+
 ```
 
 
@@ -52,8 +56,10 @@ start_locations <- sf::read_sf('{
 
 
 ```{r}
-library(lubridate)
-isochrones <- get_departure_isochrone(start_locations %>% mutate(travel_time=45*60,mode_type="cycling",departure_time=ymd_hms("2018-09-05 08:00:00")))
+isochrones <- get_departure_isochrone(start_locations %>% 
+                                        mutate(travel_time=45*60,
+                                               mode_type="public_transport",
+                                               departure_time=ymd_hms("2019-11-05 08:00:00")))
 
 
 get_vector_tiles <- function(bbox){
@@ -69,7 +75,6 @@ water <- rmapzen::as_sf(vector_tiles$water)
 
 
 
-library(ggplot2)
 ggplot(isochrones) +
   geom_sf(aes(fill=id),alpha=0.8,color=NA) +
   geom_sf(data = water, fill = "lightblue", colour = NA) +
@@ -96,7 +101,7 @@ start_data <- start_locations %>%
     mutate(.,travel_time=60*60)
   ) %>%
   sf::st_sf(crs=sf::st_crs(start_locations)) %>%
-  mutate(mode_type="cycling",departure_time=ymd_hms("2018-09-05 08:00:00"),id=paste0(id,"_",row_number()))
+  mutate(mode_type="public_transport",departure_time=ymd_hms("2019-09-06 18:00:00"),id=paste0(id,"_",row_number()))
   
 stacked_isochrones <- get_departure_isochrone(start_data)
 
@@ -125,3 +130,61 @@ ggplot(stacked_isochrones) +
 #ggsave("../images/cycling_ubc.png")
 ```
 
+
+
+# Multiple modes
+```{r}
+start_data <- read_sf('{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"id":"Canada Place"},
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -123.11339378356932,
+          49.28751493905931
+        ]
+      }
+    }
+  ]
+}') %>%
+  mutate(mode_type="driving") %>%
+  bind_rows(
+    mutate(.,mode_type="public_transport"),
+    mutate(.,mode_type="cycling"),
+    mutate(.,mode_type="walking")
+  ) %>%
+  mutate(travel_time=45*60) %>%
+  mutate(id=mode_type) %>%
+  as_tibble() %>%
+  sf::st_sf(crs=4326) %>%
+  mutate(departure_time=ymd_hms("2019-09-06 18:00:00"),id=paste0(id,"_",row_number()))
+  
+mode_isochrones <- get_departure_isochrone(start_data) 
+
+
+```
+
+
+```{r}
+mode_isochrones <- mode_isochrones %>% filter(id!="driving_1")
+bbox2 <- sf::st_bbox(mode_isochrones)
+
+
+
+mode_labels <- c("driving_1"="Driving","public_transport_2"="Transit","cycling_3"="Cycling","walking_4"="Walking")
+
+ggplot(mode_isochrones) +
+  scale_fill_brewer(palette="Set1",direction=-1,labels=mode_labels) +
+  geom_sf(aes(fill=id),color=NA,alpha=0.5) +
+  geom_sf(data = water, fill = "lightblue", colour = NA) +
+  geom_sf(data=roads,size=0.1,color="black",fill=NA) +
+  coord_sf(datum=NA,
+         xlim=c(bbox2$xmin,bbox2$xmax),
+         ylim=c(bbox2$ymin,bbox2$ymax)) +
+  labs(title="Isochrone demo, 45 miuntes from Canada Place",fill="Mode",caption="traveltimeplatform.com isochrone API")
+
+#ggsave("../images/mode_comparison.png")
+```
